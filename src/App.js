@@ -51,17 +51,17 @@ const ImagePreview = styled('img')({
 });
 
 const compressionOptions = [
-  { label: '10%', value: 90 },
-  { label: '25%', value: 75 },
-  { label: '50%', value: 50 },
-  { label: '75%', value: 25 },
+  { label: '최고화질 (90%)', value: 10 },
+  { label: '고화질 (80%)', value: 20 },
+  { label: '표준화질 (70%)', value: 30 },
+  { label: '저용량 (60%)', value: 40 },
 ];
 
 function App() {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [previewUrls, setPreviewUrls] = useState([]);
   const [compressedUrls, setCompressedUrls] = useState([]);
-  const [compressionValue, setCompressionValue] = useState(50);
+  const [compressionValue, setCompressionValue] = useState(10);
   const [isCompressing, setIsCompressing] = useState(false);
   const [selectedChip, setSelectedChip] = useState(null);
 
@@ -94,18 +94,60 @@ function App() {
     setIsCompressing(true);
     try {
       const compressPromises = selectedFiles.map(async (file) => {
+        // 이미지 크기에 따른 동적 maxSizeMB 계산
+        const originalSizeMB = file.size / (1024 * 1024);
+        const targetSizeMB = Math.max(0.3, originalSizeMB * (1 - compressionValue / 100));
+
+        // 이미지 크기에 따른 동적 maxWidthOrHeight 계산
+        const img = new Image();
+        const imgUrl = URL.createObjectURL(file);
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.src = imgUrl;
+        });
+        URL.revokeObjectURL(imgUrl);
+
+        const maxDimension = Math.max(img.width, img.height);
+        const maxWidthOrHeight = maxDimension > 4000 ? 4000 : 
+                               maxDimension > 2000 ? 2000 :
+                               maxDimension;
+
         const options = {
-          maxSizeMB: Math.max(1, file.size / (1024 * 1024) * (1 - compressionValue / 100)), // 압축률에 따라 maxSizeMB 조정
+          maxSizeMB: targetSizeMB,
+          maxWidthOrHeight: maxWidthOrHeight,
           useWebWorker: true,
-          maxWidthOrHeight: 1920,
-          quality: (100 - compressionValue) / 100,
+          // 화질 유지를 위한 최적화 옵션
+          initialQuality: 0.9,
+          alwaysKeepResolution: true,
+          // EXIF 데이터 보존
+          preserveExif: true,
+          // 파일 크기가 작은 경우 압축 건너뛰기
+          skipCompression: file.size < 100 * 1024, // 100KB 미만
         };
 
-        const compressedFile = await imageCompression(file, options);
+        // 압축 시도
+        let compressedFile = await imageCompression(file, options);
+        
+        // 압축 결과가 원본보다 큰 경우 원본 반환
+        if (compressedFile.size > file.size) {
+          console.log('압축 결과가 원본보다 큽니다. 원본 파일을 사용합니다.');
+          compressedFile = file;
+        }
+
+        // 압축 결과 정보 계산
+        const compressionRatio = ((file.size - compressedFile.size) / file.size * 100).toFixed(1);
+        const originalSize = (file.size / (1024 * 1024)).toFixed(2);
+        const compressedSize = (compressedFile.size / (1024 * 1024)).toFixed(2);
+
         return {
           url: URL.createObjectURL(compressedFile),
           file: compressedFile,
-          originalName: file.name
+          originalName: file.name,
+          stats: {
+            originalSize: `${originalSize}MB`,
+            compressedSize: `${compressedSize}MB`,
+            compressionRatio: `${compressionRatio}%`
+          }
         };
       });
 
@@ -216,16 +258,28 @@ function App() {
                   </Typography>
                   <ImagePreview src={previewUrls[index]} alt={`Preview ${index}`} />
                   {compressedUrls[index] && (
-                    <Button
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      href={compressedUrls[index].url}
-                      download={`${file.name.replace(/\.[^/.]+$/, '')}_jelly_image_compress.${file.name.split('.').pop()}`}
-                      fullWidth
-                      sx={{ mt: 1 }}
-                    >
-                      다운로드
-                    </Button>
+                    <>
+                      <Box sx={{ mt: 1, mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          원본 크기: {compressedUrls[index].stats.originalSize}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          압축 크기: {compressedUrls[index].stats.compressedSize}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          압축률: {compressedUrls[index].stats.compressionRatio}
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        href={compressedUrls[index].url}
+                        download={`${file.name.replace(/\.[^/.]+$/, '')}_jelly_image_compress.${file.name.split('.').pop()}`}
+                        fullWidth
+                      >
+                        다운로드
+                      </Button>
+                    </>
                   )}
                 </Paper>
               ))}
