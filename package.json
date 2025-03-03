@@ -2,7 +2,7 @@
   "name": "image-compressor",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://[YOUR_GITHUB_USERNAME].github.io/image-compressor",
+  "homepage": "https://jelly-cookie.github.io/Image-Compressor",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",

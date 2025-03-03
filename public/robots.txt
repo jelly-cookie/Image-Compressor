@@ -1,5 +1,5 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
-Sitemap: https://[YOUR_GITHUB_USERNAME].github.io/image-compressor/sitemap.xml
+Sitemap: https://jelly-cookie.github.io/Image-Compressor/sitemap.xml
 Disallow:
